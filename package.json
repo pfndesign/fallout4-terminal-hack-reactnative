@@ -1,0 +1,46 @@
+{
+  "main": "node_modules/expo/AppEntry.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "eject": "expo eject"
+  },
+  "dependencies": {
+    "@expo/vector-icons": "^12.0.0",
+    "crypto-js": "3.1.9-1",
+    "expo": "~43.0.2",
+    "expo-av": "~10.1.3",
+    "expo-constants": "~12.1.3",
+    "expo-font": "~10.0.3",
+    "expo-keep-awake": "~10.0.0",
+    "expo-status-bar": "~1.1.0",
+    "expo-updates": "~0.10.15",
+    "random-words": "*",
+    "react": "17.0.1",
+    "react-dom": "17.0.1",
+    "react-native": "0.64.3",
+    "react-native-paper": "4.9.2",
+    "react-native-web": "0.17.1",
+    "string-similarity": "*"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.12.9",
+    "@expo/webpack-config": "^0.16.18",
+    "workbox-background-sync": "^6.1.5",
+    "workbox-broadcast-update": "^6.1.5",
+    "workbox-cacheable-response": "^6.1.5",
+    "workbox-core": "^6.1.5",
+    "workbox-expiration": "^6.1.5",
+    "workbox-google-analytics": "^6.1.5",
+    "workbox-navigation-preload": "^6.1.5",
+    "workbox-precaching": "^6.1.5",
+    "workbox-range-requests": "^6.1.5",
+    "workbox-routing": "^6.1.5",
+    "workbox-strategies": "^6.1.5",
+    "workbox-streams": "^6.1.5",
+    "workbox-webpack-plugin": "^6.1.5"
+  },
+  "private": true
+}
