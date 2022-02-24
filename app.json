@@ -1,14 +1,14 @@
 {
   "expo": {
-    "name": "DIGITALEMAN Termlink (TM)",
-    "slug": "digitaleman-fallout4-terminal-hack",
-    "version": "1.0.1",
+    "name": "Termlink Access hack",
+    "slug": "Termlink-access-hack",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#010203"
+      "backgroundColor": "#807E7F"
     },
     "updates": {
       "fallbackToCacheTimeout": 0
@@ -22,15 +22,15 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#010203"
+        "backgroundColor": "#807E7F"
       },
       "package": "com.pfndesign.digitalemanfallout4terminalhack"
     },
     "web": {
       "favicon": "./assets/favicon.png",
       "backgroundColor": "#010203",
-      "description": "DIGITALEMAN Termlink hack minigame from fallout",
-      "name": "DIGITALEMAN Termlink (TM)",
+      "description": "Termlink hack minigame from fallout",
+      "name": "Termlink Access hack",
       "start_url": "https://pfndesign.github.io/",
       "themeColor": "#010203",
       "display": "standalone"

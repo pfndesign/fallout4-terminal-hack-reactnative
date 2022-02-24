@@ -14,8 +14,8 @@ import { StatusBar } from 'expo-status-bar';
 import * as Font from 'expo-font';
 import Constants from 'expo-constants';
 import { Audio } from 'expo-av';
-import { activateKeepAwake } from 'expo-keep-awake';
 import * as serviceWorkerRegistration from "./src/serviceWorkerRegistration";
+import { activateKeepAwake } from 'expo-keep-awake';
 const windowheight = Dimensions.get('window').height;
 const windowwidth = Dimensions.get('window').width;
 //first response from server
@@ -148,7 +148,7 @@ class App extends React.Component {
   }
   async loadFonts() {
     await Font.loadAsync({
-      "ShareTechMono": {
+      ShareTechMono: {
         uri: require('./assets/font/ShareTechMono-Regular.ttf'),
       },
     });
@@ -250,13 +250,16 @@ class App extends React.Component {
       pointermaxwordlength = this.state.pointerendlocations.find(
         (x) => x.y == this.state.pointeranimationY
       ),
-      currentlinetextmaxchars = typeof pointermaxwordlength != 'undefined'
-        ? pointermaxwordlength.width - 12
-        : windowwidth,
+      currentlinetextmaxchars =
+        typeof pointermaxwordlength != 'undefined'
+          ? pointermaxwordlength.width - 12
+          : windowwidth,
       lastlinehardcode = 121,
       animationtovalue = currentlinetextmaxchars / windowwidth,
-      maxpointerinline = Math.floor(currentlinetextmaxchars / typingpointerwidth),
-      duforeachline = maxpointerinline * 20;//pointer blink
+      maxpointerinline = Math.floor(
+        currentlinetextmaxchars / typingpointerwidth
+      ),
+      duforeachline = maxpointerinline * 20; //pointer blink
     //hard code last line because of flatlist problem
     if (
       this.state.pointerendlocations.length &&
@@ -270,15 +273,17 @@ class App extends React.Component {
       toValue: animationtovalue,
       duration: duforeachline,
       useNativeDriver: true,
-      easing: Easing.linear
+      easing: Easing.linear,
     }).start((finished) => {
       if (
-        finished && ((this.state.pointerendlocations.length &&
+        finished &&
+        ((this.state.pointerendlocations.length &&
           this.state.pointeranimationY <
           this.state.pointerendlocations[
             this.state.pointerendlocations.length - 1
-          ].y) || (!this.state.pointerendlocations.length && this.state.pointeranimationY <
-            windowheight))
+          ].y) ||
+          (!this.state.pointerendlocations.length &&
+            this.state.pointeranimationY < windowheight))
       ) {
         this.setState(
           { pointeranimationY: this.state.pointeranimationY + 21 },
@@ -287,13 +292,10 @@ class App extends React.Component {
             this.initAnimationpointer();
           }
         );
-      } else if (
-        finished && this.state.pointeranimationY != windowheight
-      ) {
+      } else if (finished && this.state.pointeranimationY != windowheight) {
         this.setState({ pointeranimationY: windowheight });
       }
     });
-
   }
   initAnimationpointerblink = () => {
     if (!this.state.pointerblinkstart)
@@ -301,9 +303,8 @@ class App extends React.Component {
     this.state.pointeranimationblink.setValue(0);
     Animated.timing(this.state.pointeranimationblink, {
       toValue: 1,
-      duration: 50,
+      duration: 20,
       useNativeDriver: Platform.os == 'web' ? true : false,
-      easing: Easing.linear
     }).start((finished) => {
       if (finished && this.state.pointeranimationY <= windowheight) {
         this.initAnimationpointerblink();
@@ -345,7 +346,7 @@ class App extends React.Component {
           y: liney,
           width: width,
         });
-        if ((liney + itemheight) >= locationheight) {
+        if (liney + itemheight >= locationheight) {
           this.setState({ pointerlocationcalced: true });
         }
       }
@@ -368,6 +369,48 @@ class App extends React.Component {
   randomIntFromInterval = (min, max) => {
     // min and max included
     return Math.floor(Math.random() * (max - min + 1) + min);
+  };
+  //generate random words
+  generateWords = (wordlength, totalwords, similarcount) => {
+    var words = require('an-array-of-english-words'),
+      stringSimilarity = require('string-similarity'),
+      wordbylength = words.filter((d) => d.length == wordlength); //find word by length
+    //shuffle
+    this.durstenfeldShuffle(wordbylength);
+
+    var wordlist = wordbylength.slice(0, totalwords), //slice the array
+      answer = wordlist[this.randomIntFromInterval(0, totalwords - 1)], //find random answer
+      answerindex = wordbylength.indexOf(answer), //index of answer in words array
+      bestmatchrating = 0, //best match match word founded in array
+      similartoanwser = [], //similar words to the answer
+      similarwordsbyrating = []; //sorted similar words to answer
+    //remove the answer from wordlist
+    wordbylength.splice(answerindex, 1);
+    //pick similar words
+    while (bestmatchrating == 0) {
+      similartoanwser = stringSimilarity.findBestMatch(answer, wordbylength);
+      bestmatchrating = similartoanwser.bestMatch.rating;
+      //there is no similar word to answer
+      if (similartoanwser.bestMatch.rating == 0) {
+        //select another answer
+        answer =
+          wordlist[this.randomIntFromInterval(0, wordbylength.length - 1)];
+      }
+    }
+    similarwordsbyrating = similartoanwser.ratings;
+    //sort similar words by rating
+    similarwordsbyrating.sort((a, b) =>
+      a.rating > b.rating ? -1 : b.rating > a.rating ? 1 : 0
+    );
+    //slice similar answers
+    similarwordsbyrating = similarwordsbyrating.slice(0, similarcount);
+    //map answers
+    similarwordsbyrating = similarwordsbyrating.map(function (item) {
+      return item['target'];
+    });
+    wordlist.concat(similarwordsbyrating);
+    wordlist = wordlist.map((name) => name.toUpperCase());
+    return { answer: answer.toUpperCase(), words: wordlist };
   };
   // generate memeory dump
   generateMemeoryDumpserverbased = (length) => {
@@ -485,51 +528,15 @@ class App extends React.Component {
       charactersLength = characters.length,
       passwordlength = 0,
       cryptojS = require('crypto-js'),
-      randomWords = require('random-words'),
-      stringSimilarity = require('string-similarity'),
-      maxlengthofwords = this.randomIntFromInterval(4, 8),
-      minsimilarwords = 8, //half and half means 4 with atleast 50% similarity and 4 with more that 75% similarity
-      similarfindmaxtries = 100, //prevent infinite loop
-      currentsimilarfindtries = 0,
-      words = randomWords({
-        min: 4,
-        max: 8,
-        maxLength: maxlengthofwords,
-        formatter: (word) => word.toUpperCase(),
-      }),
-      pickanswer = words[this.randomIntFromInterval(0, words.length - 1)];
-    //find atleast some similar words to add because i couldn't find a libery advance enough to do that
-    while (minsimilarwords != 0) {
-      var newword = randomWords({
-        exactly: 1,
-        maxLength: maxlengthofwords,
-        formatter: (word) => word.toUpperCase(),
-      }),
-        newword2 = randomWords({
-          exactly: 1,
-          maxLength: maxlengthofwords,
-          formatter: (word) => word.toUpperCase(),
-        });
-      // if atleast 20% similar add it to words
-      if (
-        stringSimilarity.compareTwoStrings(pickanswer, newword[0]) > 0.5 &&
-        pickanswer != newword[0]
-      ) {
-        words.push(newword.toString());
-        minsimilarwords--;
-      }
-      if (
-        stringSimilarity.compareTwoStrings(pickanswer, newword2[0]) > 0.75 &&
-        pickanswer != newword2[0]
-      ) {
-        words.push(newword2.toString());
-        minsimilarwords--;
-      }
-      currentsimilarfindtries++;
-      //give up if there is no similar word
-      if (currentsimilarfindtries >= similarfindmaxtries) break;
-    }
-
+      wordlength = this.randomIntFromInterval(4, 8),
+      totalwords = this.randomIntFromInterval(4, 8),
+      similarwordcount = this.randomIntFromInterval(4, 8),
+      generateWords = this.generateWords(
+        wordlength,
+        totalwords,
+        similarwordcount
+      ),
+      pickanswer = generateWords.answer;
     //save answer
     this.setState({
       answer: cryptojS.AES.encrypt(
@@ -538,7 +545,7 @@ class App extends React.Component {
       ),
     });
     //add passwords
-    words.map((item, index) => {
+    generateWords.words.map((item, index) => {
       passwordlength += item.length;
       result.push(
         <MemorydumpItem
@@ -741,7 +748,6 @@ class App extends React.Component {
       }
       return false;
     }
-
     if (this.state.data.attemptremained == 0 || this.state.data.answer === true)
       return false;
     //send to fake server for now
@@ -752,8 +758,12 @@ class App extends React.Component {
       this.initAttempts();
     });
     var likenesss = this.checkLikeness(value);
-    if (likenesss == 4) {
-      this.addLog(['Password Accepted.']);
+    if (likenesss == -1) {
+      this.addLog(['Password Accepted.', 'Reset Terminal.']);
+      // reactive terminal
+      setTimeout(() => {
+        this.reset();
+      }, serverPostResponse.lockoutwait);
     } else {
       if (tempdata.attemptremained == 0) {
         //if lockout wait is allowed
@@ -794,10 +804,11 @@ class App extends React.Component {
       ),
       answer = bytes.toString(cryptojS.enc.Utf8),
       similarity = stringSimilarity.compareTwoStrings(answer, value) * 100,
-      likeness = Math.floor(1 + (similarity / 100) * 4);
-    //had to interpolate value bettwen 1 and 5 so i just incress one to make it 0 to 4
+      maxlikeness = value.length > 1 ? value.length : 4,
+      likeness = Math.floor(1 + (similarity / 100) * maxlikeness);
+    //likeness bettwen 0 and word length -1
     likeness--;
-    return likeness;
+    return similarity == 100 ? -1 : likeness;
   };
   removerandomdud(cheatword, removedud) {
     var removed = false,
@@ -851,6 +862,9 @@ class App extends React.Component {
   }
   addLog = (logs) => {
     this.playSound();
+    setTimeout(() => {
+      this.stopSound();
+    }, 500);
     var logtmp = this.state.entrylog,
       newlogs = [];
     logs.map((item) => {
@@ -860,9 +874,6 @@ class App extends React.Component {
     this.setState({ entrylog: logtmp }, () => {
       this.entrycheckflatlist.current.scrollToEnd({ animated: true });
     });
-    setTimeout(() => {
-      this.stopSound();
-    }, 500);
   };
   reset = () => {
     serverPostResponse.attemptremained = serverInitResponse.attemptremained;
