@@ -722,8 +722,9 @@ class App extends React.Component {
   };
   checkEntry = (value, cheat) => {
     //finish the animation
-    if (this.state.pointerblinkstart) {
+    if (this.state.pointeranimationY != windowheight) {
       this.setState({ pointeranimationY: windowheight });
+      return false;
     }
     //1 in 5 chance to reset and 4 in 5 to remove a dud once
     if (cheat) {
