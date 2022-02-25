@@ -1,5 +1,10 @@
 {
   "homepage": "./",
+  "name": "termlinkacess",
+  "description": "Termlink hack minigame from fallout",
+  "appId": "com.pfndesign.termlinkacess",
+  "version": "1.0.4",
+  "author": "pfndesigen@gmail.com",
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
     "start": "expo start",
@@ -19,7 +24,6 @@
     "expo-keep-awake": "~10.0.0",
     "expo-status-bar": "~1.1.0",
     "expo-updates": "~0.10.15",
-    "random-words": "*",
     "react": "17.0.1",
     "react-dom": "17.0.1",
     "react-native": "0.64.3",
@@ -29,7 +33,10 @@
   },
   "devDependencies": {
     "@babel/core": "^7.12.9",
+    "@expo/electron-adapter": "^0.0.55",
     "@expo/webpack-config": "^0.16.18",
+    "electron": "^17.1.0",
+    "electron-builder": "^22.14.13",
     "workbox-background-sync": "^6.1.5",
     "workbox-broadcast-update": "^6.1.5",
     "workbox-cacheable-response": "^6.1.5",

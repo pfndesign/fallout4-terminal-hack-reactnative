@@ -16,6 +16,8 @@ import Constants from 'expo-constants';
 import { Audio } from 'expo-av';
 import { activateKeepAwake } from 'expo-keep-awake';
 import * as serviceWorkerRegistration from "./src/serviceWorkerRegistration";
+import ShareTechMono from './assets/font/ShareTechMono-Regular.ttf';
+import FastpaceTypingSound from './assets/sound/fast-pace-Typing.mp3';
 const windowheight = Dimensions.get('window').height;
 const windowwidth = Dimensions.get('window').width;
 //first response from server
@@ -92,20 +94,22 @@ const MemoryView = (props) => {
   return (
     <View style={styles.memory}>
       <View style={[styles.hextable, styles.line]}>{props.hextable}</View>
-      <FlatList
-        keyExtractor={(item) => item.key}
-        data={props.memorydump}
-        refreshing={true}
-        renderItem={({ item }) => {
-          return item;
-        }}
-        columnWrapperStyle={{ height: itemheight }}
-        numColumns={props.numColumns}
-        getItemLayout={(data, index) => ({
-          length: itemheight,
-          offset: itemheight * index,
-          index,
-        })}></FlatList>
+      {props.numColumns == 0 ? <FlatList key={'tmp'} /> :
+        <FlatList
+          key={"memorydump"}
+          keyExtractor={(item) => item.key}
+          data={props.memorydump}
+          refreshing={true}
+          renderItem={({ item }) => {
+            return item;
+          }}
+          columnWrapperStyle={{ height: itemheight }}
+          numColumns={props.numColumns}
+          getItemLayout={(data, index) => ({
+            length: itemheight,
+            offset: itemheight * index,
+            index,
+          })} />}
     </View>
   );
 };
@@ -149,14 +153,15 @@ class App extends React.Component {
   async loadFonts() {
     await Font.loadAsync({
       ShareTechMono: {
-        uri: require('./assets/font/ShareTechMono-Regular.ttf'),
+        uri: ShareTechMono,
+        display: Font.FontDisplay.SWAP,
       },
     });
     this.setState({ fontsLoaded: true });
   }
   async loadSound() {
     const { sound } = await Audio.Sound.createAsync(
-      require('./assets/sound/fast-pace-Typing.mp3')
+      FastpaceTypingSound
     );
     await sound.setIsLoopingAsync(true);
     await sound.setPositionAsync(500);
@@ -167,13 +172,13 @@ class App extends React.Component {
     //this.stopSound();
     await this.state.sound.unloadAsync();
   }
-  componentDidMount() {
+  async componentDidMount() {
     //don't sleep
     activateKeepAwake();
     //loadfont
-    this.loadFonts();
+    await this.loadFonts();
     //load sound effect
-    this.loadSound();
+    await this.loadSound();
     //calc memory lines
     var topbarheight = 63,
       bottombarheight = 63,
@@ -266,7 +271,7 @@ class App extends React.Component {
       this.state.pointerendlocations.findIndex(
         (x) => x.y == this.state.pointeranimationY
       ) ==
-        this.state.pointerendlocations.length - 1
+      this.state.pointerendlocations.length - 1
     )
       animationtovalue = lastlinehardcode / windowwidth;
     Animated.timing(this.state.pointeranimation, {
@@ -279,9 +284,9 @@ class App extends React.Component {
         finished &&
         ((this.state.pointerendlocations.length &&
           this.state.pointeranimationY <
-            this.state.pointerendlocations[
-              this.state.pointerendlocations.length - 1
-            ].y) ||
+          this.state.pointerendlocations[
+            this.state.pointerendlocations.length - 1
+          ].y) ||
           (!this.state.pointerendlocations.length &&
             this.state.pointeranimationY < windowheight))
       ) {

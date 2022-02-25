@@ -2,7 +2,7 @@
   "expo": {
     "name": "Termlink Access hack",
     "slug": "Termlink-access-hack",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "splash": {
@@ -24,7 +24,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#807E7F"
       },
-      "package": "com.pfndesign.digitalemanfallout4terminalhack"
+      "package": "com.pfndesign.termlinkacess"
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -33,7 +33,16 @@
       "name": "Termlink Access hack",
       "start_url": "https://pfndesign.github.io/",
       "themeColor": "#010203",
-      "display": "standalone"
+      "display": "standalone",
+      "build":{
+        "babel":{
+          "include":[
+            "crypto-js",
+            "an-array-of-english-words",
+            "string-similarity"
+          ]
+        }
+      }
     }
   }
 }
