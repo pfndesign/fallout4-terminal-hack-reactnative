@@ -14,8 +14,8 @@ import { StatusBar } from 'expo-status-bar';
 import * as Font from 'expo-font';
 import Constants from 'expo-constants';
 import { Audio } from 'expo-av';
-import * as serviceWorkerRegistration from "./src/serviceWorkerRegistration";
 import { activateKeepAwake } from 'expo-keep-awake';
+import * as serviceWorkerRegistration from "./src/serviceWorkerRegistration";
 const windowheight = Dimensions.get('window').height;
 const windowwidth = Dimensions.get('window').width;
 //first response from server
@@ -266,7 +266,7 @@ class App extends React.Component {
       this.state.pointerendlocations.findIndex(
         (x) => x.y == this.state.pointeranimationY
       ) ==
-      this.state.pointerendlocations.length - 1
+        this.state.pointerendlocations.length - 1
     )
       animationtovalue = lastlinehardcode / windowwidth;
     Animated.timing(this.state.pointeranimation, {
@@ -279,9 +279,9 @@ class App extends React.Component {
         finished &&
         ((this.state.pointerendlocations.length &&
           this.state.pointeranimationY <
-          this.state.pointerendlocations[
-            this.state.pointerendlocations.length - 1
-          ].y) ||
+            this.state.pointerendlocations[
+              this.state.pointerendlocations.length - 1
+            ].y) ||
           (!this.state.pointerendlocations.length &&
             this.state.pointeranimationY < windowheight))
       ) {
@@ -528,6 +528,7 @@ class App extends React.Component {
       charactersLength = characters.length,
       passwordlength = 0,
       cryptojS = require('crypto-js'),
+      stringSimilarity = require('string-similarity'),
       wordlength = this.randomIntFromInterval(4, 8),
       totalwords = this.randomIntFromInterval(4, 8),
       similarwordcount = this.randomIntFromInterval(4, 8),
@@ -813,7 +814,13 @@ class App extends React.Component {
   };
   removerandomdud(cheatword, removedud) {
     var removed = false,
-      tmpmemorydump = this.state.memorydump;
+      tmpmemorydump = this.state.memorydump,
+      cryptojS = require('crypto-js'),
+      bytes = cryptojS.AES.decrypt(
+        this.state.answer.toString(),
+        "Hey, chin up. I know the night just got darker, but it won't last forever"
+      ),
+      answer = bytes.toString(cryptojS.enc.Utf8);
     //looking into memory dump
     tmpmemorydump.map((char, index) => {
       //check if word is more than 1 and there is wordlocation and word is not the answer and pick randomly
@@ -823,7 +830,7 @@ class App extends React.Component {
         char.props.word.length > 1 &&
         typeof char.props.wordlocation != 'undefined' &&
         !Array.isArray(char.props.wordlocation) &&
-        char.props.word != this.state.answer &&
+        char.props.word != answer &&
         !removed &&
         randomchance == 1
       ) {
@@ -857,9 +864,7 @@ class App extends React.Component {
         );
       }
     });
-    this.setState({ memorydump: [] }, () => {
-      this.setState({ memorydump: tmpmemorydump });
-    });
+    this.setState({ memorydump: tmpmemorydump });
   }
   addLog = (logs) => {
     this.playSound();
