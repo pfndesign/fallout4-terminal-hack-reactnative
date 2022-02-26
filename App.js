@@ -20,6 +20,7 @@ import ShareTechMono from './assets/font/ShareTechMono-Regular.ttf';
 import FastpaceTypingSound from './assets/sound/fast-pace-Typing.mp3';
 const windowheight = Dimensions.get('window').height;
 const windowwidth = Dimensions.get('window').width;
+const lineHeight = 21;//each line height
 //first response from server
 const serverInitResponse = {
   attemptremained: 4,
@@ -54,20 +55,20 @@ const serverPostResponse = {
 };
 class App extends React.Component {
   state = {
-    lines: 0, //how many likes can fit in screen
+    lines: 0, //how many lines can fit in screen
     maxcharperline: 0, //max charecter that fit in a line
     charcount: 0, // how many character can fit in does lines
     data: serverInitResponse, //data from server
-    pointerendlocations: [],
-    level: 'NOVICE',
-    answer: 'freedom trail',
-    highlightedwords: [],
-    highlightedwordsreset: false,
+    pointerendlocations: [],//array of pointer locations{y:ylocation,width:width of the line}
+    level: 'NOVICE',//game level
+    answer: 'freedom trail',//game answer
+    highlightedwords: [],//entry word to use for hightlight
+    highlightedwordsreset: false,//reset memory dump flatlist after hightlight changed
     attempts: [], //attempts array(object),
-    entrylog: [{ text: 'Memory dumped.' }],
-    memorydump: [], //memory dump array(MemorydumpItem)
+    entrylog: [{ text: 'Memory dumped.' }],//entry log
+    memorydump: [], //memory dump array(object) {key: number,onPress: (function),character: string,word: string,wordlocation: array or number}
     hextable: [], //memory hex location array()
-    reset: false,
+    reset: false,//reset game
     typinganimation: new Animated.Value(0),
     pointeranimation: new Animated.Value(0),
     pointeranimationblink: new Animated.Value(0),
@@ -80,10 +81,25 @@ class App extends React.Component {
     generatedmemorydump: false,
     pointerlocationcalced: false,
   };
+  /**
+   * constructor
+   * create ref for enty check flatlist
+   * by using this ref after adding new entry we will be scrolling to the end of the list
+   * @date 2022-02-26
+   * @override
+   */
   constructor(props) {
     super(props);
     this.entrycheckflatlist = React.createRef();
   }
+  /**
+   * loadFonts
+   * load console font
+   * page will not render until font is loaded
+   * @date 2022-02-26
+   * @async
+   * @statechange fontsLoaded
+   */
   async loadFonts() {
     await Font.loadAsync({
       ShareTechMono: {
@@ -91,19 +107,53 @@ class App extends React.Component {
         display: Font.FontDisplay.SWAP,
       },
     });
+    //set the font is loaded
     this.setState({ fontsLoaded: true });
   }
+  /**
+   * loadSound
+   * load console typing sound
+   * page will not render until sound is loaded
+   * @date 2022-02-26
+   * @async
+   * @statechange sound
+   * @statechange soundLoaded
+   */
   async loadSound() {
     const { sound } = await Audio.Sound.createAsync(FastpaceTypingSound);
+    //set the sound to loop
     await sound.setIsLoopingAsync(true);
+    //set start position at 500ms (first 500ms is nothing)
     await sound.setPositionAsync(500);
-    await sound.setVolumeAsync(0.3);
+    //decrese volume because typing sound is load
+    await sound.setVolumeAsync(0.2);
+    //set the sound is loaded
     this.setState({ sound: sound, soundLoaded: true });
   }
+  /**
+   * unloadSound
+   * unload sound from memory
+   * @date 2022-02-26
+   * @async
+   * @stateuse sound
+   */
   async unloadSound() {
-    //this.stopSound();
     await this.state.sound.unloadAsync();
   }
+  /**
+   * componentDidMount
+   * @date 2022-02-26
+   * @async
+   * @fires loadFonts
+   * @fires loadSound
+   * @fires initHexTable
+   * @fires initAttempts
+   * @fires caclmemoryspace
+   * @fires initAnimationpointer
+   * @fires initAnimationpointer
+   * @fires initAnimationpointerblink
+   * @statechange lines
+   */
   async componentDidMount() {
     //don't sleep
     activateKeepAwake();
@@ -112,28 +162,60 @@ class App extends React.Component {
     //load sound effect
     await this.loadSound();
     //calc memory lines
-    var topbarheight = 63,
-      bottombarheight = 63,
+    var topbarheight = 63,//top bar height
+      bottombarheight = 63, //bottom bar (entrylist) height
       windowspace = windowheight - Constants.statusBarHeight,
       avaliblespace = windowspace - (topbarheight + bottombarheight), //space avalible for memorydump texts
-      lines = Math.floor(avaliblespace / 21);
+      lines = Math.floor(avaliblespace / lineHeight);
     //each memory dump height is 22px
     //set avalible lines for memory dump
     this.setState({ lines: lines }, () => {
       //init after lines are set
       this.initHexTable();
       this.initAttempts();
-      this.checkmemoryfit();
+      this.caclmemoryspace();
       this.initAnimationpointer();
       this.initAnimationpointerblink();
     });
   }
-  componentWillUnmount() {
+  /**
+   * componentWillUnmount
+   * @date 2022-02-26
+   * @async
+   * @fires unloadSound
+   * @stateuse soundLoaded
+   */
+  async componentWillUnmount() {
     if (this.state.soundLoaded) {
-      this.unloadSound();
+      await this.unloadSound();
     }
   }
+  /**
+   * componentDidUpdate
+   * @date 2022-02-26
+   * @async
+   * @param {object} prevProps
+   * @param {object}  prevState
+   * @listens state.charcount
+   * @listens state.reset
+   * @listens state.memorydump
+   * @listens state.generatedmemorydump
+   * @listens state.soundLoaded
+   * @listens state.pointerblinkstart
+   * @listens state.soundPlaying
+   * @listens state.pointeranimationY
+   * @listens state.soundPlaying
+   * @listens state.soundPlaying
+   * @fires caclmemoryspace
+   * @fires generateMemoryDump
+   * @fires playSound
+   * @fires stopSound
+   * @statechange memorydump
+   * @statechange generatedmemorydump
+   * @statechange soundPlaying
+   */
   componentDidUpdate(prevProps, prevState) {
+    //if character count changed or game reseted and memory dump is empty
     if (
       (prevState.charcount != this.state.charcount ||
         prevState.reset != this.state.reset) &&
@@ -141,62 +223,101 @@ class App extends React.Component {
       !this.state.generatedmemorydump &&
       this.state.generatedmemorydump == prevState.generatedmemorydump
     ) {
+      //recheck memory fit and regenerate memory dump
       this.setState({ generatedmemorydump: true }, () => {
-        this.checkmemoryfit();
+        this.caclmemoryspace();
         this.setState({
-          memorydump: this.generateMemeoryDump(this.state.charcount),
+          memorydump: this.generateMemoryDump(this.state.charcount),
           generatedmemorydump: false,
         });
       });
       return;
     }
+    //if sound is loaded and pointer is blinking and sound is not playing
     if (
       this.state.soundLoaded &&
       this.state.pointerblinkstart &&
       this.state.soundPlaying == prevState.soundPlaying &&
       !this.state.soundPlaying
     ) {
+      //play the sound
       this.setState({ soundPlaying: true }, () => {
         this.playSound();
       });
       return;
     }
+    //if pointer is at the end of the page and sound is playing and loaded
     if (
       this.state.pointeranimationY >= windowheight &&
       this.state.soundPlaying == prevState.soundPlaying &&
       this.state.soundPlaying &&
       this.state.soundLoaded
     ) {
+      //stop the sound
       this.setState({ soundPlaying: false }, () => {
         this.stopSound();
       });
       return;
     }
   }
+  /**
+   * playSound
+   * play typing sound
+   * @date 2022-02-26
+   * @async
+   * @stateuse sound
+   * @statechange soundPlaying
+   */
   async playSound() {
     await this.state.sound.playAsync();
+    //set sound is playing if state is not set
     if (!this.state.soundPlaying) this.setState({ soundPlaying: true });
   }
+  /**
+   * stopSound
+   * reset the position of the sound and stop it
+   * @date 2022-02-26
+   * @async
+   * @stateuse sound
+   * @statechange soundPlaying
+   */
   async stopSound() {
+    //reset position
     await this.state.sound.setPositionAsync(500);
     await this.state.sound.stopAsync();
+    //set sound is not playing if state is not set
     if (this.state.soundPlaying) this.setState({ soundPlaying: false });
   }
-  async initAnimationpointer() {
-    var typingpointerwidth = 12,
+  /**
+   * initAnimationpointer
+   * start pointer animation
+   * @date 2022-02-26
+   * @requires Animated
+   * @fires initAnimationpointer
+   * @constantuse lineHeight
+   * @constantuse windowwidth
+   * @constantuse windowheight
+   * @stateuse pointerendlocations
+   * @stateuse pointeranimationY
+   * @stateuse pointeranimation
+   * @statechange pointeranimation by animation
+   * @statechange pointeranimationY
+   */
+  initAnimationpointer() {
+    var typingpointerwidth = (lineHeight / 2) + 1,
       pointermaxwordlength = this.state.pointerendlocations.find(
         (x) => x.y == this.state.pointeranimationY
-      ),
+      ),//find pointer info based on animation y locations
       currentlinetextmaxchars =
         typeof pointermaxwordlength != 'undefined'
           ? pointermaxwordlength.width - 12
-          : windowwidth,
-      lastlinehardcode = 121,
-      animationtovalue = currentlinetextmaxchars / windowwidth,
+          : windowwidth, // if pointer location exists animate to width if not animate to window width
+      lastlinehardcode = 121,//last line is entry check and usualy it's just one line because it's flatlist can't calc it's entry width
+      animationtovalue = currentlinetextmaxchars / windowwidth,// cacl animation value between 0 and 1 as windows width is 1
       maxpointerinline = Math.floor(
         currentlinetextmaxchars / typingpointerwidth
-      ),
-      duforeachline = maxpointerinline * 20; //pointer blink
+      ),//how many pointer can fit in the animation line
+      duforeachline = maxpointerinline * 20; // many ms for each pointer in line
     //hard code last line because of flatlist problem
     if (
       this.state.pointerendlocations.length &&
@@ -212,6 +333,7 @@ class App extends React.Component {
       useNativeDriver: true,
       easing: Easing.linear,
     }).start((finished) => {
+      //if animation finished and pointer locations is not at end ot the window
       if (
         finished &&
         ((this.state.pointerendlocations.length &&
@@ -222,35 +344,59 @@ class App extends React.Component {
           (!this.state.pointerendlocations.length &&
             this.state.pointeranimationY < windowheight))
       ) {
+        // got to the next pointer location and reset animations
         this.setState(
-          { pointeranimationY: this.state.pointeranimationY + 21 },
+          { pointeranimationY: this.state.pointeranimationY + lineHeight },
           () => {
             this.state.pointeranimation.setValue(0);
             this.initAnimationpointer();
           }
         );
-      } else if (finished && this.state.pointeranimationY != windowheight) {
+      } else if (finished && this.state.pointeranimationY >= windowheight) {
+        //if pointer location is at the end of the window height stop the animation
         this.setState({ pointeranimationY: windowheight });
       }
     });
   }
+  /**
+   * initAnimationpointerblink
+   * pointer blinking animation
+   * @date 2022-02-26
+   * @requires Animated
+   * @fires nitAnimationpointerblink
+   * @constantuse windowheight
+   * @stateuse pointerblinkstart
+   * @stateuse pointeranimationblink
+   * @statechange pointerblinkstart
+   */
   initAnimationpointerblink = () => {
     if (!this.state.pointerblinkstart)
       this.setState({ pointerblinkstart: true });
+    //reset animation value
     this.state.pointeranimationblink.setValue(0);
     Animated.timing(this.state.pointeranimationblink, {
       toValue: 1,
       duration: 20,
-      useNativeDriver: Platform.os == 'web' ? true : false,
+      useNativeDriver: Platform.OS == 'web' ? true : false,
     }).start((finished) => {
+      //if pinter is not at the end of the page
       if (finished && this.state.pointeranimationY <= windowheight) {
+        //loop animation
         this.initAnimationpointerblink();
       } else if (finished) {
+        //if pinter is at the end of the page stop the animations
         this.setState({ pointerblinkstart: false });
       }
     });
   };
-  //init data
+  /**
+   * initHexTable
+   * create hex table address
+   * @date 2022-02-26
+   * @fires renderHexTableItem
+   * @stateuse lines
+   * @statechange hextable
+   */
   initHexTable = () => {
     var randomhexstart = Math.random(),
       hextabletmp = [];
@@ -261,7 +407,15 @@ class App extends React.Component {
     }
     this.setState({ hextable: hextabletmp });
   };
-  //init remained attempts
+
+  /**
+   * initAttempts
+   * render attempts
+   * @date 2022-02-26
+   * @fires renderAttemptItem
+   * @stateuse data.attemptremained
+   * @statechange attempts
+   */
   initAttempts = () => {
     var attempts = [];
     //attempts
@@ -270,44 +424,87 @@ class App extends React.Component {
     }
     this.setState({ attempts: attempts });
   };
-  //calc each line end x locations for animation
+
+  /**
+   * onLayoutPointerlocations
+   * calc each line y and width for pointer animations
+   * @date 2022-02-26
+   * @param {nativeEvent} event
+   * @param {bool}  interpolate
+   * @constantuse lineHeight
+   * @stateuse pointerlocationcalced
+   * @stateuse pointerendlocations
+   * @statechange pointerlocationcalced
+   * @statechange pointerendlocations
+   */
   onLayoutPointerlocations = (event, interpolate) => {
+    //if locations calculated stop
     if (this.state.pointerlocationcalced) return;
     const { x, y, width, height } = event.nativeEvent.layout;
     var pointerlocations = this.state.pointerendlocations,
-      itemheight = 21,
       locationheight = y + height;
-    if (height > 21 && interpolate) {
-      for (var liney = y; liney <= locationheight; liney += itemheight) {
+    //if layout is multi line and we should interpolate it
+    if (height > lineHeight && interpolate) {
+      //create pointer location for each line
+      for (var liney = y; liney <= locationheight; liney += lineHeight) {
         pointerlocations.push({
           y: liney,
           width: width,
         });
-        if (liney + itemheight >= locationheight) {
+        //if it's the last line job is done
+        // because last thing is memory dump area this line works
+        if (liney + lineHeight >= locationheight) {
           this.setState({ pointerlocationcalced: true });
         }
       }
     } else {
+      //layout is not multiline
       pointerlocations.push({
         y: y,
         width: width,
       });
     }
+    //save the pointer locations
     this.setState({ pointerendlocations: pointerlocations });
   };
-  //shufle alg
+
+  /**
+   * durstenfeldShuffle
+   * durstenfeld array shuffle
+   * @date 2022-02-26
+   * @param {array} array
+   */
   durstenfeldShuffle = (array) => {
     for (var i = array.length - 1; i > 0; i--) {
       var rand = Math.floor(Math.random() * (i + 1));
       [array[i], array[rand]] = [array[rand], array[i]];
     }
   };
-  //random number between
+  /**
+   * randomIntFromInterval
+   * generate random number bettwen min and max
+   * @date 2022-02-26
+   * @param {Number} min
+   * @param {Number}  max
+   * @returns {Number} random number
+   */
   randomIntFromInterval = (min, max) => {
     // min and max included
     return Math.floor(Math.random() * (max - min + 1) + min);
   };
-  //generate random words
+
+  /**
+   * generateWords
+   * generate words for memory dump
+   * @date 2022-02-26
+   * @param {Number} wordlength length of the generated words
+   * @param {Number} totalwords total word to generate
+   * @param {Number} similarcount total similar word to generate
+   * @returns {object} {answer: string,words: array,bestMatch: float}
+   * @requires an-array-of-english-words
+   * @requires string-similarity
+   * @fires randomIntFromInterval
+   */
   generateWords = (wordlength, totalwords, similarcount) => {
     var words = require('an-array-of-english-words'),
       stringSimilarity = require('string-similarity'),
@@ -353,13 +550,24 @@ class App extends React.Component {
       bestMatch: similartoanwser.bestMatch.rating,
     };
   };
-  generateMemeoryDump = (length) => {
+  /**
+   * generateMemoryDump
+   * generate memory dump data for flatlist
+   * @date 2022-02-26
+   * @param {Number} length total memory dump character length
+   * @returns {array} {key: number,onPress: (function),character: string,word: string,wordlocation: array or number}
+   * @requires crypto-js
+   * @fires randomIntFromInterval
+   * @fires generateWords
+   * @statechange answer
+   * @statechange level
+   */
+  generateMemoryDump = (length) => {
     var result = [],
       characters = '~!@#$%^&*()_+|}{":;\'/.<>=-`',
       charactersLength = characters.length,
       passwordlength = 0,
       cryptojS = require('crypto-js'),
-      stringSimilarity = require('string-similarity'),
       wordlength = this.randomIntFromInterval(4, 8),
       totalwords = this.randomIntFromInterval(4, 8),
       similarwordcount = this.randomIntFromInterval(4, 8),
@@ -487,79 +695,49 @@ class App extends React.Component {
     });
     return result;
   };
-  checkmemoryfit = () => {
-    var padding = 20,
-      hextablewidth = 70,
-      width = windowwidth - (hextablewidth + padding),
-      maxcharperline = Math.floor(width / 12),
-      charcount = maxcharperline * this.state.lines;
+  /**
+   * caclmemoryspace
+   * calculate memory dump space 
+   * @date 2022-02-26
+   * @sateuse lines
+   * @statechange charcount
+   * @statechange maxcharperline
+   */
+  caclmemoryspace = () => {
+    var padding = 20,//container patting
+      hextablewidth = 70,//hextable width
+      width = windowwidth - (hextablewidth + padding),//remaining space for memory dump area
+      maxcharperline = Math.floor(width / 12),//each character has a 12px width
+      charcount = maxcharperline * this.state.lines; // total charecters fit in the area
     //calc max char that fit in memory view
     this.setState({ charcount: charcount, maxcharperline: maxcharperline });
   };
-  checkEntryserverbased = (value, cheat) => {
-    //reset attempts and remove dud
-    //1 in 5 chance to reset and 4 in 5 to remove a dud once
-    if (cheat) {
-      serverPostResponse.attemptremained = serverInitResponse.attemptremained;
-      this.setState(
-        {
-          data: serverInitResponse,
-          reset: !this.state.reset,
-        },
-        () => {
-          this.initAttempts();
-        }
-      );
-      this.addLog([value, 'attempt reset.']);
-      return false;
-    }
-
-    if (this.state.data.attemptremained == 0 || this.state.data.answer === true)
-      return false;
-    //send to fake server for now
-    var tempdata = serverPostResponse;
-    tempdata.attemptremained -= 1; //fake attempt reduce for test
-    //save fake data as new data
-    this.setState({ data: tempdata }, () => {
-      this.initAttempts();
-    });
-    if (tempdata.answer == true) {
-      this.addLog(['access granted.']);
-    } else {
-      if (tempdata.attemptremained == 0) {
-        //if lockout wait is allowed
-        if (serverPostResponse.lockoutwait != -1) {
-          this.addLog([
-            value,
-            'Entry denied.',
-            'Likeness=' + serverPostResponse.likeness,
-            'initiate lockdown.',
-            'wait ' + serverPostResponse.lockoutwait + 'ms.',
-          ]);
-          // reactive terminal
-          setTimeout(() => {
-            this.reset();
-          }, serverPostResponse.lockoutwait);
-        } else {
-          //lock out wait is not allowed and user is logout form terminal
-          this.addLog([
-            value,
-            'Entry denied.',
-            'Likeness=' + serverPostResponse.likeness,
-            'initiate lockdown.',
-            'lockdown complete.',
-          ]);
-        }
-      } else {
-        //normal entry check
-        this.addLog([
-          value,
-          'Entry denied.',
-          'Likeness=' + serverPostResponse.likeness,
-        ]);
-      }
-    }
-  };
+  /**
+   * checkEntry
+   * check user selected character with answer
+   * @date 2022-02-26
+   * @async
+   * @param {string} value user selected word
+   * @param {boolean} cheat is word a cheat or not
+   * @fires randomIntFromInterval
+   * @fires removerandomdud
+   * @fires initAttempts
+   * @fires addEntry
+   * @fires checkLikeness
+   * @fires reset
+   * @constantuse windowheight
+   * @constantuse serverInitResponse
+   * @constantuse serverPostResponse
+   * @stateuse pointeranimationY
+   * @stateuse highlightedwords
+   * @stateuse data.attemptremained
+   * @stateuse data.answer
+   * @statechange pointeranimationY
+   * @statechange highlightedwords
+   * @statechange highlightedwordsreset
+   * @statechange data
+   * @statechange reset
+   */
   checkEntry = (value, cheat) => {
     //finish the animation
     if (this.state.pointeranimationY < windowheight) {
@@ -587,10 +765,10 @@ class App extends React.Component {
             this.initAttempts();
           }
         );
-        this.addLog([value, 'Tries reset.']);
+        this.addEntry([value, 'Tries reset.']);
       } else {
         this.removerandomdud(value, true);
-        this.addLog([value, 'Dud removed.']);
+        this.addEntry([value, 'Dud removed.']);
       }
       return false;
     }
@@ -612,7 +790,7 @@ class App extends React.Component {
     );
     var likenesss = this.checkLikeness(value);
     if (likenesss == -1) {
-      this.addLog(['Password Accepted.', 'Reset Terminal.']);
+      this.addEntry(['Password Accepted.', 'Reset Terminal.']);
       // reactive terminal
       setTimeout(() => {
         this.reset();
@@ -621,7 +799,7 @@ class App extends React.Component {
       if (tempdata.attemptremained == 0) {
         //if lockout wait is allowed
         if (serverPostResponse.lockoutwait != -1) {
-          this.addLog([
+          this.addEntry([
             value,
             'Entry denied.',
             'Likeness=' + likenesss,
@@ -634,7 +812,7 @@ class App extends React.Component {
           }, serverPostResponse.lockoutwait);
         } else {
           //lock out wait is not allowed and user is logout form terminal
-          this.addLog([
+          this.addEntry([
             value,
             'Entry denied.',
             'Likeness=' + likenesss,
@@ -644,10 +822,20 @@ class App extends React.Component {
         }
       } else {
         //normal entry check
-        this.addLog([value, 'Entry denied.', 'Likeness=' + likenesss]);
+        this.addEntry([value, 'Entry denied.', 'Likeness=' + likenesss]);
       }
     }
   };
+  /**
+   * checkLikeness
+   * check user selected word with answer for likness rating
+   * @date 2022-02-26
+   * @param {string} value selected word
+   * @returns {number} between 0 and word length
+   * @requires string-similarity
+   * @requires crypto-js
+   * @stateuse answer
+   */
   checkLikeness = (value) => {
     var stringSimilarity = require('string-similarity'),
       cryptojS = require('crypto-js'),
@@ -655,14 +843,26 @@ class App extends React.Component {
         this.state.answer.toString(),
         "Hey, chin up. I know the night just got darker, but it won't last forever"
       ),
-      answer = bytes.toString(cryptojS.enc.Utf8),
-      similarity = stringSimilarity.compareTwoStrings(answer, value) * 100,
-      maxlikeness = value.length > 1 ? value.length : 4,
-      likeness = Math.floor(1 + (similarity / 100) * maxlikeness);
-    //likeness bettwen 0 and word length -1
+      answer = bytes.toString(cryptojS.enc.Utf8),//decrypted anwser
+      similarity = stringSimilarity.compareTwoStrings(answer, value) * 100,//check for similarity and convert to 3 digit number between 0 and 100
+      maxlikeness = value.length > 1 ? value.length : 4, // likness is bettwen 0 and word length
+      likeness = Math.floor(1 + (similarity / 100) * maxlikeness);// interpolate likeness bettwen 1 and wordlength
+    //decress it so likness is starting from 0
     likeness--;
     return similarity == 100 ? -1 : likeness;
   };
+  /**
+   * removerandomdud
+   * remove a random dud from memory dump
+   * @date 2022-02-26
+   * @param {string} cheatword cheat word used
+   * @param {boolean} removedud remove dud or reset attempt
+   * @requires crypto-js
+   * @fires randomIntFromInterval
+   * @stateuse memorydump
+   * @stateuse answer
+   * @statechange memorydump
+   */
   removerandomdud(cheatword, removedud) {
     var removed = false,
       tmpmemorydump = this.state.memorydump,
@@ -710,21 +910,55 @@ class App extends React.Component {
     });
     this.setState({ memorydump: tmpmemorydump });
   }
-  addLog = (logs) => {
+  /**
+   * addEntry
+   * @date 2022-02-26
+   * @param {array} logs array of entrys
+   * @fires playSound
+   * @fires stopSound
+   * @stateuse entrylog
+   * @statechange entrylog
+   */
+  addEntry = (logs) => {
+    //play typing sound
     this.playSound();
-    setTimeout(() => {
-      this.stopSound();
-    }, 500);
+
     var logtmp = this.state.entrylog,
       newlogs = [];
+    //push logs
     logs.map((item) => {
       newlogs.push({ text: item });
     });
+    //combine logs
     Array.prototype.push.apply(logtmp, newlogs);
+    //update the entrylog
     this.setState({ entrylog: logtmp }, () => {
+      //scroll entrycheck flatlist to the end
       this.entrycheckflatlist.current.scrollToEnd({ animated: true });
+      //stop typing sound
+      this.stopSound();
     });
   };
+  /**
+   * reset
+   * resst the game
+   * @date 2022-02-26
+   * @fires initHexTable
+   * @fires initAttempts
+   * @fires initAnimationpointer
+   * @fires initAnimationpointerblink
+   * @constantuse serverInitResponse
+   * @constantuse serverPostResponse
+   * @stateuse reset
+   * @stateuse highlightedwordsreset
+   * @statechange data
+   * @statechange entrylog
+   * @statechange memorydump
+   * @statechange reset
+   * @statechange pointeranimationY
+   * @statechange highlightedwords
+   * @statechange highlightedwordsreset
+   */
   reset = () => {
     serverPostResponse.attemptremained = serverInitResponse.attemptremained;
     this.state.typinganimation.setValue(0);
@@ -748,32 +982,12 @@ class App extends React.Component {
       }
     );
   };
-
-  renderEntrycheck = (data) => {
-    var itemheight = 21;
-    return (
-      <View style={styles.entrycheck}>
-        <FlatList
-          ref={this.entrycheckflatlist}
-          style={styles.entrychecklist}
-          keyExtractor={(item, index) => index + item.text}
-          data={data}
-          extraData={this.state.reset}
-          refreshing={true}
-          renderItem={({ item, index }) => {
-            return this.renderEntrylogItem(index, item.text);
-          }}
-          getItemLayout={(data, index) => ({
-            length: itemheight,
-            offset: itemheight * index,
-            index,
-          })}></FlatList>
-      </View>
-    );
-  };
-  renderAttemptItem = (key) => {
-    return <View key={key} style={styles.attemptremainedindicat} />;
-  };
+  /**
+   * renderAttempts
+   * @date 2022-02-26
+   * @param {array} attempts renderAttemptItem
+   * @returns {View}
+   */
   renderAttempts = (attempts) => {
     return (
       <View style={styles.attempts}>
@@ -784,38 +998,17 @@ class App extends React.Component {
       </View>
     );
   };
-  renderMemorydumpItem = (props) => {
-    return (
-      <TouchableOpacity data={props} key={props.key} onPress={props.onPress}>
-        <Text
-          style={[
-            styles.consoletext,
-            styles.consoletexttouchable,
-            styles.memorydatachar,
-            this.state.highlightedwords.includes(props.word)
-              ? styles.consoletexthighlight
-              : null,
-          ]}>
-          {props.character}
-        </Text>
-      </TouchableOpacity>
-    );
-  };
-  renderHexTableItem = (key, location) => {
-    return (
-      <Text
-        key={key}
-        style={[
-          styles.hexlocation,
-          styles.consoletext,
-          styles.consoletexttouchable,
-        ]}>
-        0x{location}
-      </Text>
-    );
-  };
+  /**
+   * renderMemoryView
+   * @date 2022-02-26
+   * @constantuse lineHeight
+   * @stateuse hextable
+   * @stateuse maxcharperline
+   * @stateuse memorydump
+   * @stateuse highlightedwordsreset
+   * @returns {View}
+   */
   renderMemoryView = () => {
-    var itemheight = 21;
     return (
       <View style={styles.memory}>
         <View style={[styles.hextable, styles.line]}>
@@ -833,11 +1026,11 @@ class App extends React.Component {
             renderItem={({ item }) => {
               return this.renderMemorydumpItem(item);
             }}
-            columnWrapperStyle={{ height: itemheight }}
+            columnWrapperStyle={{ height: lineHeight }}
             numColumns={this.state.maxcharperline}
             getItemLayout={(data, index) => ({
-              length: itemheight,
-              offset: itemheight * index,
+              length: lineHeight,
+              offset: lineHeight * index,
               index,
             })}
           />
@@ -845,6 +1038,95 @@ class App extends React.Component {
       </View>
     );
   };
+  /**
+   * renderEntrycheck
+   * @date 2022-02-26
+   * @param {array} data entrylog data
+   * @returns {View}
+   * @ref entrycheckflatlist
+   * @constuse lineHeight
+   * @stateuse reset
+   */
+  renderEntrycheck = (data) => {
+    return (
+      <View style={styles.entrycheck}>
+        <FlatList
+          ref={this.entrycheckflatlist}
+          style={styles.entrychecklist}
+          keyExtractor={(item, index) => index + item.text}
+          data={data}
+          extraData={this.state.reset}
+          refreshing={true}
+          renderItem={({ item, index }) => {
+            return this.renderEntrylogItem(index, item.text);
+          }}
+          getItemLayout={(data, index) => ({
+            length: lineHeight,
+            offset: lineHeight * index,
+            index,
+          })}></FlatList>
+      </View>
+    );
+  };
+  /**
+   * renderAttemptItem
+   * @date 2022-02-26
+   * @param {number} key item key
+   * @returns {View}
+   */
+  renderAttemptItem = (key) => {
+    return <View key={key} style={styles.attemptremainedindicat} />;
+  };
+  /**
+   * renderHexTableItem
+   * @date 2022-02-26
+   * @param {number} key item key
+   * @param {string} location memory hex location string
+   * @returns {View}
+   */
+  renderHexTableItem = (key, location) => {
+    return (
+      <Text
+        key={key}
+        style={[
+          styles.hexlocation,
+          styles.consoletext,
+          styles.consoletexttouchable,
+        ]}>
+        0x{location}
+      </Text>
+    );
+  };
+  /**
+   * renderMemorydumpItem
+   * @date 2022-02-26
+   * @param {object} props {key: number,onPress: (function),character: string,word: string,wordlocation: array or number}
+   * @returns {View}
+   */
+  renderMemorydumpItem = (props) => {
+    return (
+      <TouchableOpacity data={props} key={props.key} onPress={props.onPress}>
+        <Text
+          style={[
+            styles.consoletext,
+            styles.consoletexttouchable,
+            styles.memorydatachar,
+            this.state.highlightedwords.includes(props.word)
+              ? styles.consoletexthighlight
+              : null,
+          ]}>
+          {props.character}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+  /**
+   * renderEntrylogItem
+   * @date 2022-02-26
+   * @param {number} key item key
+   * @param {string} value entry log text
+   * @returns {value}
+   */
   renderEntrylogItem = (key, value) => {
     return (
       <Text key={key} style={[styles.entrychecktext, styles.consoletext]}>
@@ -854,14 +1136,16 @@ class App extends React.Component {
     );
   };
   render() {
+    //if font and sound is loaded
     if (this.state.fontsLoaded && this.state.soundLoaded) {
       return (
         <View style={styles.container}>
+          {/* topbar */}
           <View style={styles.topbar}>
             <Text
               style={[styles.line, styles.consoletext]}
               onLayout={(e) => this.onLayoutPointerlocations(e, false)}>
-              Welcome to DIGITALEMAN Termlink
+              Welcome to Termlink access
             </Text>
             <Text
               style={[styles.line, styles.consoletext]}
@@ -872,19 +1156,22 @@ class App extends React.Component {
               {this.renderAttempts(this.state.attempts)}
             </View>
           </View>
+          {/* memory dump and hextable */}
           <View
             style={styles.console}
             onLayout={(e) => this.onLayoutPointerlocations(e, true)}>
             {this.renderMemoryView()}
           </View>
+          {/* entry check */}
           {this.renderEntrycheck(this.state.entrylog)}
+          {/* animated pointer */}
           <Animated.View
             style={[
               styles.typinganimation,
               {
                 transform: [
                   {
-                    translateY: this.state.pointeranimationY + 21,
+                    translateY: this.state.pointeranimationY + lineHeight,
                   },
                 ],
               },
@@ -949,7 +1236,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   line: {
-    lineHeight: 21,
+    lineHeight: lineHeight,
   },
   consoletext: {
     fontFamily: 'ShareTechMono',
@@ -984,7 +1271,7 @@ const styles = StyleSheet.create({
   },
   hexlocation: {
     marginRight: 10,
-    lineHeight: 21,
+    lineHeight: lineHeight,
   },
   console: {
     flex: 1,
@@ -995,7 +1282,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   entrychecktext: {
-    lineHeight: 21,
+    lineHeight: lineHeight,
   },
   memorydatachar: {
     minWidth: 12,
@@ -1013,15 +1300,15 @@ const styles = StyleSheet.create({
   typingpointerbg: {
     position: 'absolute',
     width: '100%',
-    height: 21,
+    height: lineHeight,
     top: 0,
     left: 10,
     backgroundColor: '#010203',
     justifyContent: 'center',
   },
   typingpointer: {
-    width: 12,
-    height: 12,
+    width: (lineHeight / 2) + 1,
+    height: (lineHeight / 2) + 1,
     backgroundColor: '#00FF7F',
   },
 });
