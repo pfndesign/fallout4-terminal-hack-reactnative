@@ -52,75 +52,6 @@ const serverPostResponse = {
   answer: false, // is answer
   lockoutwait: 5000, //ms , if fail to find words in 4 attempts must wait xms to retry or -1 to fully lockout
 };
-const AttemptItem = (props) => {
-  return <View style={styles.attemptremainedindicat} />;
-};
-const Attempts = (props) => {
-  return (
-    <View style={styles.attempts}>
-      <Text style={[styles.line, styles.consoletext]}>Attempts Remained :</Text>
-      <View style={styles.attemptremained}>{props.attempts}</View>
-    </View>
-  );
-};
-const MemorydumpItem = (props) => {
-  return (
-    <TouchableOpacity onPress={props.onPress}>
-      <Text
-        style={[
-          styles.consoletext,
-          styles.consoletexttouchable,
-          styles.memorydatachar,
-        ]}>
-        {props.character}
-      </Text>
-    </TouchableOpacity>
-  );
-};
-const HexTableItem = (props) => {
-  return (
-    <Text
-      style={[
-        styles.hexlocation,
-        styles.consoletext,
-        styles.consoletexttouchable,
-      ]}>
-      0x{props.location}
-    </Text>
-  );
-};
-const MemoryView = (props) => {
-  var itemheight = 21;
-  return (
-    <View style={styles.memory}>
-      <View style={[styles.hextable, styles.line]}>{props.hextable}</View>
-      {props.numColumns == 0 ? <FlatList key={'tmp'} /> :
-        <FlatList
-          key={"memorydump"}
-          keyExtractor={(item) => item.key}
-          data={props.memorydump}
-          refreshing={true}
-          renderItem={({ item }) => {
-            return item;
-          }}
-          columnWrapperStyle={{ height: itemheight }}
-          numColumns={props.numColumns}
-          getItemLayout={(data, index) => ({
-            length: itemheight,
-            offset: itemheight * index,
-            index,
-          })} />}
-    </View>
-  );
-};
-const EntrylogItem = (props) => {
-  return (
-    <Text style={[styles.entrychecktext, styles.consoletext]}>
-      {'>'}
-      {props.value}
-    </Text>
-  );
-};
 class App extends React.Component {
   state = {
     lines: 0, //how many likes can fit in screen
@@ -128,7 +59,10 @@ class App extends React.Component {
     charcount: 0, // how many character can fit in does lines
     data: serverInitResponse, //data from server
     pointerendlocations: [],
+    level: 'NOVICE',
     answer: 'freedom trail',
+    highlightedwords: [],
+    highlightedwordsreset: false,
     attempts: [], //attempts array(object),
     entrylog: [{ text: 'Memory dumped.' }],
     memorydump: [], //memory dump array(MemorydumpItem)
@@ -160,9 +94,7 @@ class App extends React.Component {
     this.setState({ fontsLoaded: true });
   }
   async loadSound() {
-    const { sound } = await Audio.Sound.createAsync(
-      FastpaceTypingSound
-    );
+    const { sound } = await Audio.Sound.createAsync(FastpaceTypingSound);
     await sound.setIsLoopingAsync(true);
     await sound.setPositionAsync(500);
     await sound.setVolumeAsync(0.3);
@@ -325,7 +257,7 @@ class App extends React.Component {
     //fake memory hex address
     for (let i = 0; i < this.state.lines; i++) {
       let n = ((randomhexstart + i) * 0xfffff * 1000000).toString(16);
-      hextabletmp.push(<HexTableItem key={i} location={n.slice(0, 4)} />);
+      hextabletmp.push(this.renderHexTableItem(i, n.slice(0, 4)));
     }
     this.setState({ hextable: hextabletmp });
   };
@@ -334,7 +266,7 @@ class App extends React.Component {
     var attempts = [];
     //attempts
     for (let i = 0; i < this.state.data.attemptremained; i++) {
-      attempts.push(<AttemptItem key={i} />);
+      attempts.push(this.renderAttemptItem(i));
     }
     this.setState({ attempts: attempts });
   };
@@ -392,11 +324,11 @@ class App extends React.Component {
     //remove the answer from wordlist
     wordbylength.splice(answerindex, 1);
     //pick similar words
-    while (bestmatchrating == 0) {
+    while (bestmatchrating < 0.1) {
       similartoanwser = stringSimilarity.findBestMatch(answer, wordbylength);
       bestmatchrating = similartoanwser.bestMatch.rating;
       //there is no similar word to answer
-      if (similartoanwser.bestMatch.rating == 0) {
+      if (similartoanwser.bestMatch.rating < 0.1) {
         //select another answer
         answer =
           wordlist[this.randomIntFromInterval(0, wordbylength.length - 1)];
@@ -415,117 +347,11 @@ class App extends React.Component {
     });
     wordlist.concat(similarwordsbyrating);
     wordlist = wordlist.map((name) => name.toUpperCase());
-    return { answer: answer.toUpperCase(), words: wordlist };
-  };
-  // generate memeory dump
-  generateMemeoryDumpserverbased = (length) => {
-    var result = [],
-      characters = '~!@#$%^&*()_+|}{":;\'/.<>=-`',
-      charactersLength = characters.length,
-      passwordlength = 0,
-      passwords = this.state.data.passwords;
-
-    //rand passwords order
-    this.durstenfeldShuffle(passwords);
-    //calc password length
-    //add passwords
-    passwords.map((item, index) => {
-      passwordlength += item.value.length;
-      result.push(
-        <MemorydumpItem
-          key={'P' + index}
-          onPress={() => this.checkEntry(item.value, false)}
-          character={item.value}
-          word={item}
-        />
-      );
-    });
-    length -= passwordlength;
-    //add rest of the characters
-    for (let i = 0; i < length; i++) {
-      let character = characters.charAt(
-        Math.floor(Math.random() * charactersLength)
-      );
-      result.push(
-        <MemorydumpItem
-          key={'c' + i}
-          onPress={() => this.checkEntry(character, false)}
-          character={character}
-          word={character}
-        />
-      );
-    }
-    //shuffle
-    this.durstenfeldShuffle(result);
-    // terminal cheats
-    var cheatstartchart = ['{', '(', '{'];
-    ///now find the word delete them and add each of their words in their locations
-    result.map((item, index) => {
-      if (item.props.character.length > 1) {
-        //replace og word with first letter of that word
-        result[index] = (
-          <MemorydumpItem
-            key={'p' + index}
-            onPress={() => this.checkEntry(item.props.character, false)}
-            character={item.props.character[0]}
-            word={item.props.character}
-            wordlocation={index}
-          />
-        );
-        //re add each char after another
-        for (let i = 1; i < item.props.character.length; i++) {
-          result.splice(
-            index + i,
-            0,
-            <MemorydumpItem
-              key={'p' + i}
-              onPress={() => this.checkEntry(item.props.character, false)}
-              character={item.props.character[i]}
-              word={item.props.character}
-              wordlocation={index}
-            />
-          );
-        }
-      } else if (
-        cheatstartchart.indexOf(item.props.character) > -1 &&
-        typeof result[index + 1] != 'undefined'
-      ) {
-        var chars = item.props.character;
-        // if there is () or {} or [] reset attempts and remove duds
-        // max char include between is 12 char
-        for (let i2 = index + 1; i2 < result.length - 1; i2++) {
-          chars += result[i2].props.character;
-          if (
-            ((item.props.character == '{' &&
-              result[i2].props.character == '}') ||
-              (item.props.character == '(' &&
-                result[i2].props.character == ')') ||
-              (item.props.character == '[' &&
-                result[i2].props.character == ']') ||
-              (item.props.character == '<' &&
-                result[i2].props.character == '>')) &&
-            chars.length <= 12
-          ) {
-            result[index] = (
-              <MemorydumpItem
-                key={'c' + index}
-                onPress={() => this.checkEntry(chars, true)}
-                character={item.props.character}
-              />
-            );
-            result[i2] = (
-              <MemorydumpItem
-                key={'c' + i2}
-                onPress={() => this.checkEntry(chars, true)}
-                character={result[i2].props.character}
-              />
-            );
-            break;
-          }
-        }
-      }
-    });
-    return result;
+    return {
+      answer: answer.toUpperCase(),
+      words: wordlist,
+      bestMatch: similartoanwser.bestMatch.rating,
+    };
   };
   generateMemeoryDump = (length) => {
     var result = [],
@@ -543,24 +369,47 @@ class App extends React.Component {
         similarwordcount
       ),
       pickanswer = generateWords.answer;
+    //level
+    var level = 0,
+      // word length 4 is 0 and 8 is 0.125
+      wordlengthdifficulty = (wordlength * 0.25) / 8 - 0.125,
+      // total words 4 is 0 and 8 is 0.125
+      totalwordsdifficulty = (totalwords * 0.25) / 8 - 0.125,
+      // similar words 4 is 0 and 8 is 0.125 - must be subtracted from difficulty
+      similarworddifficulty = (similarwordcount * 0.25) / 8 - 0.125,
+      // generate Word 8 is 0 and 16 is 0.125
+      generateWorddifficulty = (generateWords.words.length * 0.25) / 16 - 0.125,
+      // bestmatch difficulty 0.1 is 0 and 0.9 is 0.2 - must be subtracted from difficulty ((generateWords.bestMatch * 0.25) /1)-0.025
+      bestmatchdifficulty = (generateWords.bestMatch * 0.25) / 1 - 0.025,
+      //min difficulty is -0.325 and max is 0.375 by addin 0.325 number is between 0 and 0.7
+      difficultylevel =
+        wordlengthdifficulty +
+        totalwordsdifficulty +
+        generateWorddifficulty -
+        (bestmatchdifficulty + similarworddifficulty) +
+        0.325;
+    // calc level
+    if (difficultylevel <= 0.2) level = 'NOVICE';
+    else if (difficultylevel <= 0.4) level = 'ADVANCED';
+    else if (difficultylevel <= 0.5) level = 'EXPERT';
+    else if (difficultylevel <= 0.7) level = 'MASTER';
     //save answer
     this.setState({
       answer: cryptojS.AES.encrypt(
         pickanswer,
         "Hey, chin up. I know the night just got darker, but it won't last forever"
       ),
+      level: level,
     });
     //add passwords
     generateWords.words.map((item, index) => {
       passwordlength += item.length;
-      result.push(
-        <MemorydumpItem
-          key={'w' + index + item}
-          onPress={() => this.checkEntry(item, false)}
-          character={item}
-          word={item}
-        />
-      );
+      result.push({
+        key: 'w' + index + item,
+        onPress: () => this.checkEntry(item, false),
+        character: item,
+        word: item,
+      });
     });
     length -= passwordlength;
     //add rest of the characters
@@ -568,14 +417,12 @@ class App extends React.Component {
       let character = characters.charAt(
         Math.floor(Math.random() * charactersLength)
       );
-      result.push(
-        <MemorydumpItem
-          key={'c' + i + character}
-          onPress={() => this.checkEntry(character, false)}
-          character={character}
-          word={character}
-        />
-      );
+      result.push({
+        key: 'c' + i + character,
+        onPress: () => this.checkEntry(character, false),
+        character: character,
+        word: character,
+      });
     }
     //shuffle
     this.durstenfeldShuffle(result);
@@ -583,69 +430,56 @@ class App extends React.Component {
     var cheatstartchart = ['{', '(', '{'];
     ///now find the word delete them and add each of their words in their locations
     result.map((item, index) => {
-      if (item.props.character.length > 1) {
+      if (item.character.length > 1) {
         //replace og word with first letter of that word
-        result[index] = (
-          <MemorydumpItem
-            key={'w' + index + item.props.character}
-            onPress={() => this.checkEntry(item.props.character, false)}
-            character={item.props.character[0]}
-            word={item.props.character}
-            wordlocation={index}
-          />
-        );
+        result[index] = {
+          key: 'w' + index + item.character,
+          onPress: () => this.checkEntry(item.character, false),
+          character: item.character[0],
+          word: item.character,
+          wordlocation: index,
+        };
+
         //re add each char after another
-        for (let i = 1; i < item.props.character.length; i++) {
-          result.splice(
-            index + i,
-            0,
-            <MemorydumpItem
-              key={'w' + i + item.props.character}
-              onPress={() => this.checkEntry(item.props.character, false)}
-              character={item.props.character[i]}
-              word={item.props.character}
-              wordlocation={index}
-            />
-          );
+        for (let i = 1; i < item.character.length; i++) {
+          result.splice(index + i, 0, {
+            key: 'w' + i + item.character,
+            onPress: () => this.checkEntry(item.character, false),
+            character: item.character[i],
+            word: item.character,
+            wordlocation: index,
+          });
         }
       } else if (
-        cheatstartchart.indexOf(item.props.character) > -1 &&
+        cheatstartchart.indexOf(item.character) > -1 &&
         typeof result[index + 1] != 'undefined'
       ) {
-        var chars = item.props.character;
+        var chars = item.character;
         // if there is () or {} or [] reset attempts and remove duds
         // max char include between is 12 char
         for (let i2 = index + 1; i2 < result.length - 1; i2++) {
-          chars += result[i2].props.character;
+          chars += result[i2].character;
           if (
-            ((item.props.character == '{' &&
-              result[i2].props.character == '}') ||
-              (item.props.character == '(' &&
-                result[i2].props.character == ')') ||
-              (item.props.character == '[' &&
-                result[i2].props.character == ']') ||
-              (item.props.character == '<' &&
-                result[i2].props.character == '>')) &&
+            ((item.character == '{' && result[i2].character == '}') ||
+              (item.character == '(' && result[i2].character == ')') ||
+              (item.character == '[' && result[i2].character == ']') ||
+              (item.character == '<' && result[i2].character == '>')) &&
             chars.length <= 12
           ) {
-            result[index] = (
-              <MemorydumpItem
-                key={item.key}
-                onPress={() => this.checkEntry(chars, true)}
-                character={item.props.character}
-                word={chars}
-                wordlocation={[index, i2]}
-              />
-            );
-            result[i2] = (
-              <MemorydumpItem
-                key={result[i2].key}
-                onPress={() => this.checkEntry(chars, true)}
-                character={result[i2].props.character}
-                word={chars}
-                wordlocation={[index, i2]}
-              />
-            );
+            result[index] = {
+              key: item.key,
+              onPress: () => this.checkEntry(chars, true),
+              character: item.character,
+              word: chars,
+              wordlocation: [index, i2],
+            };
+            result[i2] = {
+              key: result[i2].key,
+              onPress: () => this.checkEntry(chars, true),
+              character: result[i2].character,
+              word: chars,
+              wordlocation: [index, i2],
+            };
             break;
           }
         }
@@ -728,9 +562,14 @@ class App extends React.Component {
   };
   checkEntry = (value, cheat) => {
     //finish the animation
-    if (this.state.pointeranimationY != windowheight) {
+    if (this.state.pointeranimationY < windowheight) {
       this.setState({ pointeranimationY: windowheight });
       return false;
+    }
+    //add to highlighted words
+    var highlightedwords = this.state.highlightedwords;
+    if (value.length > 1 && !highlightedwords.includes(value)) {
+      highlightedwords.push(value);
     }
     //1 in 5 chance to reset and 4 in 5 to remove a dud once
     if (cheat) {
@@ -761,9 +600,16 @@ class App extends React.Component {
     var tempdata = serverPostResponse;
     tempdata.attemptremained -= 1; //fake attempt reduce for test
     //save fake data as new data
-    this.setState({ data: tempdata }, () => {
-      this.initAttempts();
-    });
+    this.setState(
+      {
+        data: tempdata,
+        highlightedwords: highlightedwords,
+        highlightedwordsreset: !this.state.highlightedwordsreset,
+      },
+      () => {
+        this.initAttempts();
+      }
+    );
     var likenesss = this.checkLikeness(value);
     if (likenesss == -1) {
       this.addLog(['Password Accepted.', 'Reset Terminal.']);
@@ -832,41 +678,34 @@ class App extends React.Component {
       var randomchance = this.randomIntFromInterval(0, 1);
       if (
         removedud &&
-        char.props.word.length > 1 &&
-        typeof char.props.wordlocation != 'undefined' &&
-        !Array.isArray(char.props.wordlocation) &&
-        char.props.word != answer &&
+        char.word.length > 1 &&
+        typeof char.wordlocation != 'undefined' &&
+        !Array.isArray(char.wordlocation) &&
+        char.word != answer &&
         !removed &&
         randomchance == 1
       ) {
         //find last index based on the first word location
-        var toindex = char.props.wordlocation + char.props.word.length;
+        var toindex = char.wordlocation + char.word.length;
         //loop chars and replace them with .
-        for (var i = char.props.wordlocation; i < toindex; i++) {
-          if (tmpmemorydump[i].props.word == char.props.word)
-            tmpmemorydump[i] = (
-              <MemorydumpItem
-                key={tmpmemorydump[i].key}
-                onPress={() => this.checkEntry('.', false)}
-                character={'.'}
-                word={'.'}
-              />
-            );
+        for (var i = char.wordlocation; i < toindex; i++) {
+          if (tmpmemorydump[i].word == char.word)
+            tmpmemorydump[i] = {
+              key: tmpmemorydump[i].key,
+              onPress: () => this.checkEntry('.', false),
+              character: '.',
+              word: '.',
+            };
         }
         removed = true;
-      } else if (
-        char.props.word == cheatword &&
-        Array.isArray(char.props.wordlocation)
-      ) {
+      } else if (char.word == cheatword && Array.isArray(char.wordlocation)) {
         //deactive the cheat word
-        tmpmemorydump[index] = (
-          <MemorydumpItem
-            key={char.key}
-            onPress={() => this.checkEntry(char.props.word, false)}
-            character={char.props.character}
-            word={char.props.word}
-          />
-        );
+        tmpmemorydump[index] = {
+          key: char.key,
+          onPress: () => this.checkEntry(char.word, false),
+          character: char.character,
+          word: char.word,
+        };
       }
     });
     this.setState({ memorydump: tmpmemorydump });
@@ -899,6 +738,8 @@ class App extends React.Component {
         memorydump: [],
         reset: !this.state.reset,
         pointeranimationY: 0,
+        highlightedwords: [],
+        highlightedwordsreset: !this.state.highlightedwordsreset,
       },
       () => {
         this.initAttempts();
@@ -920,7 +761,7 @@ class App extends React.Component {
           extraData={this.state.reset}
           refreshing={true}
           renderItem={({ item, index }) => {
-            return <EntrylogItem key={index} value={item.text} />;
+            return this.renderEntrylogItem(index, item.text);
           }}
           getItemLayout={(data, index) => ({
             length: itemheight,
@@ -928,6 +769,88 @@ class App extends React.Component {
             index,
           })}></FlatList>
       </View>
+    );
+  };
+  renderAttemptItem = (key) => {
+    return <View key={key} style={styles.attemptremainedindicat} />;
+  };
+  renderAttempts = (attempts) => {
+    return (
+      <View style={styles.attempts}>
+        <Text style={[styles.line, styles.consoletext]}>
+          Attempts Remained :
+        </Text>
+        <View style={styles.attemptremained}>{attempts}</View>
+      </View>
+    );
+  };
+  renderMemorydumpItem = (props) => {
+    return (
+      <TouchableOpacity data={props} key={props.key} onPress={props.onPress}>
+        <Text
+          style={[
+            styles.consoletext,
+            styles.consoletexttouchable,
+            styles.memorydatachar,
+            this.state.highlightedwords.includes(props.word)
+              ? styles.consoletexthighlight
+              : null,
+          ]}>
+          {props.character}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+  renderHexTableItem = (key, location) => {
+    return (
+      <Text
+        key={key}
+        style={[
+          styles.hexlocation,
+          styles.consoletext,
+          styles.consoletexttouchable,
+        ]}>
+        0x{location}
+      </Text>
+    );
+  };
+  renderMemoryView = () => {
+    var itemheight = 21;
+    return (
+      <View style={styles.memory}>
+        <View style={[styles.hextable, styles.line]}>
+          {this.state.hextable}
+        </View>
+        {this.state.maxcharperline == 0 ? (
+          <FlatList key={'tmp'} />
+        ) : (
+          <FlatList
+            key={'memorydump'}
+            keyExtractor={(item) => item.key}
+            data={this.state.memorydump}
+            extraData={this.state.highlightedwordsreset}
+            refreshing={true}
+            renderItem={({ item }) => {
+              return this.renderMemorydumpItem(item);
+            }}
+            columnWrapperStyle={{ height: itemheight }}
+            numColumns={this.state.maxcharperline}
+            getItemLayout={(data, index) => ({
+              length: itemheight,
+              offset: itemheight * index,
+              index,
+            })}
+          />
+        )}
+      </View>
+    );
+  };
+  renderEntrylogItem = (key, value) => {
+    return (
+      <Text key={key} style={[styles.entrychecktext, styles.consoletext]}>
+        {'>'}
+        {value}
+      </Text>
     );
   };
   render() {
@@ -943,21 +866,16 @@ class App extends React.Component {
             <Text
               style={[styles.line, styles.consoletext]}
               onLayout={(e) => this.onLayoutPointerlocations(e, false)}>
-              Password Required
+              Password Required [{this.state.level}]
             </Text>
             <View onLayout={(e) => this.onLayoutPointerlocations(e, true)}>
-              <Attempts attempts={this.state.attempts} />
+              {this.renderAttempts(this.state.attempts)}
             </View>
           </View>
           <View
             style={styles.console}
             onLayout={(e) => this.onLayoutPointerlocations(e, true)}>
-            <MemoryView
-              hextable={this.state.hextable}
-              lines={this.state.lines}
-              memorydump={this.state.memorydump}
-              numColumns={this.state.maxcharperline}
-            />
+            {this.renderMemoryView()}
           </View>
           {this.renderEntrycheck(this.state.entrylog)}
           <Animated.View
@@ -1038,6 +956,10 @@ const styles = StyleSheet.create({
     textAlign: 'left',
     color: '#00FF7F',
     fontSize: 14,
+  },
+  consoletexthighlight: {
+    backgroundColor: '#00FF7F',
+    color: '#010203',
   },
   consoletexttouchable: {
     fontSize: 18,

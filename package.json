@@ -2,7 +2,7 @@
   "homepage": "./",
   "name": "termlinkacess",
   "description": "Termlink hack minigame from fallout",
-  "appId": "com.pfndesign.termlinkacess",
+  "appId": "com-pfndesign-termlinkacess",
   "version": "1.0.4",
   "author": "pfndesigen@gmail.com",
   "main": "node_modules/expo/AppEntry.js",
