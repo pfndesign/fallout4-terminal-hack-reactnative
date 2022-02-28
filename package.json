@@ -3,15 +3,18 @@
   "name": "termlinkacess",
   "description": "Termlink hack minigame from fallout",
   "appId": "com-pfndesign-termlinkacess",
-  "version": "1.0.4",
-  "author": "pfndesigen@gmail.com",
+  "version": "1.0.6",
+  "author": "pfndesign <pfndesigen@gmail.com>",
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "eject": "expo eject"
+    "eject": "expo eject",
+    "dist:linux32": "electron-webpack && electron-builder --ia32 --linux ",
+    "dist:linux64": "electron-webpack && electron-builder --x64 --linux ",
+    "dist:linuxarm": "electron-webpack && electron-builder --arm64 --armv7l --linux"
   },
   "dependencies": {
     "@expo/vector-icons": "^12.0.0",
@@ -35,8 +38,10 @@
     "@babel/core": "^7.12.9",
     "@expo/electron-adapter": "^0.0.55",
     "@expo/webpack-config": "^0.16.18",
+    "babel-loader": "^8.2.3",
     "electron": "^17.1.0",
     "electron-builder": "^22.14.13",
+    "electron-icon-maker": "^0.0.5",
     "workbox-background-sync": "^6.1.5",
     "workbox-broadcast-update": "^6.1.5",
     "workbox-cacheable-response": "^6.1.5",
@@ -51,5 +56,37 @@
     "workbox-streams": "^6.1.5",
     "workbox-webpack-plugin": "^6.1.5"
   },
-  "private": true
+  "private": true,
+  "build": {
+    "appId": "com-pfndesign-termlinkacess",
+    "icon": "./assets/icons/mac/icon.icns",
+    "linux": {
+      "target": [
+        "deb",
+        "rpm"
+      ],
+      "category": "Game"
+    },
+    "extraMetadata": {
+      "main": "main.js"
+    },
+    "files": [
+      {
+        "from": "dist/main/",
+        "to": "./",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "dist/renderer",
+        "to": "./",
+        "filter": [
+          "**/*"
+        ]
+      },
+      "package.json",
+      "**/node_modules/**/*"
+    ]
+  }
 }
